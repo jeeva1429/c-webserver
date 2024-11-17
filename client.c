@@ -13,21 +13,9 @@
 #define SERVERHOST  "localhost"
 
 
-// void
-// write_to_server (int filedes)
-// {
-//   int nbytes;
 
-//   nbytes = write (filedes, MESSAGE, strlen (MESSAGE) + 1);
-//   if (nbytes < 0)
-//     {
-//       perror ("write");
-//       exit (EXIT_FAILURE);
-//     }
-// }
 
-void
-init_sockaddr (struct sockaddr_in *name,
+void init_sockaddr (struct sockaddr_in *name,
                const char *hostname,
                uint16_t port)
 {
@@ -45,14 +33,14 @@ init_sockaddr (struct sockaddr_in *name,
 }
 
 
-int main (int argc, char *argv[])
+void main (int argc, char *argv[])
 {
   printf("argument count %d",argc);
   if (argc < 2) {
     perror("to little arguments");
     exit(EXIT_SUCCESS);
   }
-void init_sockaddr (struct sockaddr_in *name,const char *hostname,uint16_t port);
+  void init_sockaddr (struct sockaddr_in *name,const char *hostname,uint16_t port);
   int sock;
   struct sockaddr_in servername;
 
@@ -71,14 +59,24 @@ void init_sockaddr (struct sockaddr_in *name,const char *hostname,uint16_t port)
       perror ("connect (client)");
       exit (EXIT_FAILURE);
     }
-printf("the message is %s", argv[1]);
-int bytes_sent = send(sock, argv[1], strlen(argv[1]), 0);
-if (bytes_sent < 0) {
-    perror("send failed");
-    exit(EXIT_FAILURE);
-}
-printf("Sent %d bytes\n", bytes_sent); 
 
+    /*Send data to the server */
+  int bytes_sent = send(sock, argv[1], strlen(argv[1]), 0);
+  if (bytes_sent < 0) {
+      perror("send failed");
+      exit(EXIT_FAILURE);
+  }
+  printf("Sent %d bytes\n", bytes_sent); 
+
+
+  /*Receive data from server*/
+  char buffer[1024];
+  ssize_t bytes_read = read(sock, buffer, sizeof(buffer));
+    if (bytes_read < 0) {
+        perror("Error reading from socket");
+        close(sock);
+    }
+    printf("Received message from server: %s\n", buffer);
 
   close (sock);
   exit (EXIT_SUCCESS);
