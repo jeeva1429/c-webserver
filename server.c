@@ -84,7 +84,8 @@ int main() {
     int *sock_fd = make_socket(port);  
     struct sockaddr_in client_add;
     socklen_t addr_len = sizeof(client_add);
-    int threads_count = 0;
+
+    
     // Set the socket to listen for connections
     if (listen(*sock_fd, 5) < 0) {
         perror("requests limit reached");
@@ -98,7 +99,6 @@ int main() {
         int client_fd = accept(*sock_fd, (struct sockaddr*)&client_add, &addr_len); 
         pthread_t thread_id;
         pthread_create(&thread_id, NULL, &handle_client, (void*)(intptr_t)client_fd);
-        threads_count++;
         pthread_detach(thread_id);
 
     }
