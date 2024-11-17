@@ -8,14 +8,18 @@
 #include <sys/time.h>
 #include <netdb.h>
 #include <string.h>
-#define MAXMSG  512
+#include <pthread.h>
+
+
 // Function to create and bind a socket to a specified port
-int make_socket(uint16_t port) {
-    int sock;
+int* make_socket(uint16_t port) {
+    int *sockptr;
     struct sockaddr_in name;
+    socklen_t add_len = sizeof(name);
 
     // Create a socket using PF_INET and SOCK_STREAM for TCP
-    sock = socket(PF_INET, SOCK_STREAM, 0);
+    int sock = socket(PF_INET, SOCK_STREAM, 0);
+    sockptr = &sock;
     if (sock < 0) {
         perror("socket");
         exit(1);
@@ -27,81 +31,82 @@ int make_socket(uint16_t port) {
     name.sin_addr.s_addr = htonl(INADDR_ANY);
 
     // Bind the socket to the specified port
-    if (bind(sock, (struct sockaddr *) &name, sizeof(name)) < 0) {
+    if (bind(sock, (struct sockaddr *) &name, sizeof(name))) {
         perror("bind");
         exit(1);
     }
 
-    return sock;  // Return the socket descriptor
+    return sockptr;  // Return the socket descriptor
 }
 
-int
-read_from_client (int filedes)
-{
-  char buffer[MAXMSG];
-  int nbytes;
+  struct sock_data {
+        int* sock_id;
+        int clientCount;
+    };
 
-  nbytes = read (filedes, buffer, MAXMSG);
-  if (nbytes < 0)
-    {
-      /* Read error. */
-      perror ("read");
-      exit (EXIT_FAILURE);
+void* handle_client(void *arg) {
+    int client_fd = (int)(intptr_t)arg;
+    if(client_fd < 0) {
+        perror("Error in connecting to server");
+        return NULL;
     }
-  else if (nbytes == 0)
-    /* End-of-file. */
-    return -1;
-  else
-    {
-      /* Data read. */
-      fprintf (stderr, "Server: got message: `%s'\n", buffer);
-      return 0;
+
+    char data_to_client[] = "Hello from server";
+    char buffer[1024];
+    
+    ssize_t bytes_read = read(client_fd, buffer, sizeof(buffer));
+    if (bytes_read < 0) {
+        perror("Error reading from socket");
+        close(client_fd);
+        return NULL;
     }
+    printf("Received message from client: %s\n", buffer);
+
+    ssize_t bytes_sent = send(client_fd, data_to_client, sizeof(data_to_client), 0);
+    if (bytes_sent < 0) {
+        perror("Error sending to client");
+        close(client_fd);
+        return NULL;
+    }
+
+    close(client_fd); // Close the client socket after communication is done
+    return NULL;
 }
 
+
+struct client_data {
+    int client_fd;
+
+};
 int main() {
     int port = 5000;
-    char buffer[24];
-
-    int sock = make_socket(port);  // Call the make_socket function
+    int client_sock;
+    int *sock_fd = make_socket(port);  
+    struct sockaddr_in client_add;
+    socklen_t addr_len = sizeof(client_add);
+    int threads_count = 0;
     // Set the socket to listen for connections
-    if (listen(sock, 5) < 0) {
-        perror("listen");
+    if (listen(*sock_fd, 5) < 0) {
+        perror("requests limit reached");
         exit(1);
     }
     printf("Server is listening on port %d\n", port);
 
-    // Accept a client connection (this would block until a connection is made)
-    int client_fd = accept(sock, NULL, NULL);
-    if (client_fd < 0) {
-        perror("accept");
-        exit(1);
+    while (1)
+    // infinite loop to accepts client connections.
+    {
+        int client_fd = accept(*sock_fd, (struct sockaddr*)&client_add, &addr_len); 
+        pthread_t thread_id;
+        pthread_create(&thread_id, NULL, &handle_client, (void*)(intptr_t)client_fd);
+        threads_count++;
+        pthread_detach(thread_id);
+
     }
 
-    printf("Client connected.\n");
-  // Receive data from the client
-    int msg_size;
-    int bytes_received;
-    int total_bytes = 0;
-    bytes_received = recv(client_fd, &msg_size, sizeof(msg_size)-1, 0);
-
-    if (bytes_received <= 0) {
-    perror("Failed to receive message size");
-    exit(1);
-}
-
-    char *msg = malloc(msg_size);
-    while(total_bytes < msg_size) {
-    bytes_received = recv(client_fd, msg + total_bytes, msg_size - total_bytes, 0);
-    if (bytes_received <= 0) {
-        exit(1);  // Handle disconnection or error
-    }
-    total_bytes += bytes_received;
-}
-    printf("the message is %s", msg);
-    free(msg);
-    close(client_fd);
-    close(sock);
-
+    close(*sock_fd);
     return 0;
+   
 }
+
+
+
